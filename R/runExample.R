@@ -10,7 +10,8 @@ runExample <- function() {
 
 #' @export
 runBackNowExample <- function() {
-
+  
+  # test
   data("halfyear")
   dat_tbl <- halfyear$dat_tbl
 
