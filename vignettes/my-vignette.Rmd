@@ -1,0 +1,58 @@
+---
+title: "my-vignette"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{my-vignette}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+```
+
+```{r setup}
+library(linelistBayes)
+library(tidyverse)
+```
+
+# The example where you have count data
+```{r example1}
+data("halfyear")
+
+halfyear$dat_tbl %>%
+  mutate(d1_int = type.convert(d1, as.is = T)) %>%
+  ggplot(.) + geom_line(aes(x = d1_int, y = Freq)) +
+  geom_line(aes(x = d1_int, y = Freq), data = halfyear$o1_tbl %>%
+              mutate(d1_int = type.convert(d1, as.is = T)),
+            color = 'red') +
+  geom_line(aes(x = d1_int, y = Freq), data = halfyear$i1_tbl %>%
+              mutate(d1_int = type.convert(d1, as.is = T)),
+            color = 'blue')
+
+```
+
+# The example where you have linelist data
+```{r example2}
+data("linelist")
+
+as_tibble(linelist) %>%
+  rename("Daily Infections" = i1,
+         "Daily Onsets" = o1,
+         "Daily Reports" = d1) %>%
+  pivot_longer(cols = c("Daily Infections", "Daily Onsets",
+                        "Daily Reports")) %>%
+  group_by(name, gen_i_c, value) %>% tally() %>%
+  ggplot(.) +
+  geom_bar(aes(x = value, fill = gen_i_c, y = n),
+           position = 'stack', stat = 'identity', color = 'black',
+           lwd = 0.1) +
+  facet_wrap(~name, nrow = 1) +
+  ylab('N') + xlab('Day') +
+  # scale_fill_brewer(name = 'Gen.#', type = 'seq',
+  #                   direction = -1, palette = 3) +
+  theme_gray() + coord_cartesian(xlim = c(0, ld))
+```

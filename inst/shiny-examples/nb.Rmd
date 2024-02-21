@@ -1,0 +1,40 @@
+---
+title: "nbinom"
+author: "Chad Milando"
+date: "2024-01-04"
+output: html_document
+runtime: shiny
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+This R Markdown document is made interactive using Shiny. Unlike the more traditional workflow of creating static reports, you can now create documents that allow your readers to change the assumptions underlying your analysis and see the results immediately. 
+
+To learn more, see [Interactive Documents](http://rmarkdown.rstudio.com/authoring_shiny.html).
+
+## Negative binomial
+
+```{r eruptions, echo=FALSE}
+inputPanel(
+  sliderInput("NB_m", label = "NB mean", value = 9, min = 0.1, max = 20),
+  sliderInput("NB_r", label = "NB dispersion", value = 3, min = 0.1, max = 40)
+)
+
+renderPlot({
+
+  set.seed(1)
+  x <- rnbinom(1000, size = input$NB_r, mu = input$NB_m)
+  
+  hist(x, xlim = c(0, 50), ylim = c(0, 1), breaks = 20, probability = T)
+  
+  dens <- density(x, breaks = 100)
+  lines(dens, col = "blue")
+})
+```
+
+
+
+
+

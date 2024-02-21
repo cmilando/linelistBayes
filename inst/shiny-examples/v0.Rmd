@@ -1,0 +1,381 @@
+---
+title: "Back-calculation of R(t)"
+author: Tenglong Li, PhD^[Boston University, Biostatistics]; Laura White, PhD^[Boston University, Biostatistics]; Chad Milando, PhD*^[Boston University, Environmental Health, cmilando@bu.edu]
+date: "2024-01-03"
+output: html_document
+runtime: shiny
+---
+
+```{=html}
+<style type="text/css">
+.main-container {
+  max-width: 750px;
+  margin-left: auto;
+  margin-right: auto;
+}
+</style>
+```
+
+```{css, echo=FALSE}
+.plotlysize {
+  height: 220px;
+```
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(plotly)
+library(purrr)
+library(shiny)
+library(splines)
+library(tidyverse)
+```
+
+This R Markdown document walks through the steps of using Bayesian inference to create more realistic estimates of time-dependent reproductive number, $R(t)$ that can be helpful for surveillance and intervention planning of infectious diseases, like COVID-19.
+
+This document has several sections:
+
+-   Simulating line list data
+-   Back-calculation and now-casting
+
+### Background
+**Line-list data** means you have a single row for each case, that has dates for: infection, symptom onset, positive test, and when this was reported to public health agencies.
+
+Sources for describing these windows:
+
+* 
+
+## Simulating line-list data
+
+Assuming you have 100 initial cases (infectors), and distributions for infections and onset are as described for COVID-19 in the supplemental of [Li and White](https://journals.plos.org/ploscompbiol/article?id=10.1371/journal.pcbi.1009210), set the initial $R_0$, the asymptotic $R(t)$, the parameters for the truncated Negative Binomial (NB) distribution that defines the maximum reporting delay distribution, and the modeling window. Perfect instantaneous reporting can be achieved with either a max. reporting delay of 0 days or with a NB mean of 0. NB dispersion (also called 'size') is a measure of over-dispersion (smaller size means more over-dispersion, which means variance != mean). For more information see [Zeileis](https://edoc.unibas.ch/15400/).
+
+```{r get_curves, echo=FALSE}
+
+n0 = 100; 
+
+## INPUTS
+inputPanel(
+  # row 1
+  sliderInput("r0", label = "Initial r0:",
+              min = 0.2, max = 2, value = 1, step = 0.1),
+  sliderInput("NB_m", label = "NB mean (days)", value = 9, min = 0., max = 20),
+  sliderInput("maxdelay", label = "Max. reporting delay (days)", value = 20,
+              min = 0, max = 30, step = 1),
+  # row2
+  sliderInput("RTINF", label = "Final R(t):",
+              min = 0.2, max = 2, value = 1, step = 0.1),
+  sliderInput("NB_r", label = "NB dispersion", value = 3, min = 0.1, max = 20),
+  sliderInput("ld", label = "Modeling window (days)", value = 30,
+              min = 0, max = 60, step = 5)
+)
+```
+
+Using this information, describe the daily infections, onsets, and reporting days of first generation (the first round of infectees):
+```{r get_curves2, echo=FALSE}
+# set.seed(4)
+# wild ** set.seed(1) doesn't work....
+# and in general, setting the seed makes this look weird ...
+# *****
+
+plot_dat <- reactive({
+  # ----------
+  # one draw from poisson given by lambda = initial cases * initial reproductive number
+  # this gives the first timestep of infectees from the initial cases (?)
+  n1 <- rpois(1, n0 * input$r0) 
+  # hist(rpois(1000, n0 * r0))
+  # n1
+  
+  # LiT: Date of infection
+  # Generation interval distribution draw for n1 infectees
+  # generation interval is the time between infection and transmission
+  # shape = 4.29 and rate = 1.18 are based on COVID-19 literature
+  # > ceiling() rounds up to integer values for days 
+  # NOTE: this will be replaced by "serial interval" data later (?)
+  inf1 <- rgamma(n1, shape = 4.29, rate = 1.18) 
+  i1   <- ceiling(inf1) 
+  # hist(i1)
+  # length(i1)
+  
+  # LiT: Date of onset sympotom
+  # Incubation period: period between exposure and appearance of symptoms
+  # lognormal distribution with mean of 1.621 and sd of 0.418, based on COVID-19 literature
+  # > ceiling() rounds up to integer values for days 
+  inc1 <- exp(rnorm(n1, 1.621, 0.418))
+  o1   <- i1 + ceiling(inc1) 
+  # hist(o1)
+  # length(o1)
+
+  # LiT: Date of report
+  # negative binomial distribution for the reporting delay between
+  # testing positive and reporting to public health agencies
+  # with size parameter = r and mean(mu) = m and
+  # with an upper bound of l (aka `maxdelay`), the max reporting delay
+  # there are n = maxdelay + 1 of these values
+  p <- dnbinom(0:input$maxdelay, size = input$NB_r, mu = input$NB_m)
+  d1 <- o1 + sample(0:input$maxdelay, size = n1, prob = p, replace = TRUE) 
+  # hist(d1)
+  # length(d1)
+  
+  # create a combined dataset
+  # CM: add generation #
+  gen_i <- 1
+  gen_i_c <- rep(gen_i, length(i1))
+  dat <- cbind(i1, o1, d1, gen_i_c)
+  
+  dat
+})
+# 
+# # Curves
+# # area under the curve should be = 196
+renderPlot({
+  as_tibble(plot_dat()) %>%
+    rename("Daily Infections" = i1,
+           "Daily Onsets" = o1,
+           "Daily Reports" = d1) %>%
+    pivot_longer(cols = c("Daily Infections", "Daily Onsets",
+                          "Daily Reports")) %>%
+    group_by(name, gen_i_c, value) %>% tally() %>%
+    ggplot(.) +
+    geom_bar(aes(x = value, fill = factor(gen_i_c), y = n),
+             position = 'stack', stat = 'identity', color = 'black',
+             lwd = 0.1, fill = '#6495ED') +
+    facet_wrap(~name, nrow = 1) +
+    ylab('N') + xlab('Day') +
+    scale_fill_brewer(name = 'Gen.#', type = 'seq',
+                      direction = 1, palette = 3) +
+    theme_gray() + coord_cartesian(xlim = c(0, as.numeric(input$ld)),
+                                   ylim = c(0, 50)) +
+    theme(
+      axis.text = element_text(size = 10),
+          axis.title = element_text(size = 14),
+          strip.text = element_text(size = 14)
+    )
+}, height = 200)
+```
+
+Now, create your $R(t)$ curve so you can simulate the next generation(s) of cases (starting at $t=1$. Pre-defining the shape of $R(t)$ allows you to simulate infectious disease dynamics, interventions, etc. Note: if $R(t) > 1$ for all $t$, the cases will expontentially increase, and the code will not complete for modeling windows greater than 30 days.
+
+<div class = 'plotlysize'>
+```{r set_rt, echo=FALSE}
+# PLOT PARAMETERS
+YMAX <- 2
+NPTS <- 6
+BSDEG <- 1
+XSTART <- 1
+
+# REFERENCE: # https://stackoverflow.com/questions/47280032/draggable-line-chart-in-r-shiny
+### asb should be '30'
+rv <- reactiveValues(
+  x = NULL,
+  y = rep(1, length.out = NPTS)
+)
+
+observeEvent(input$ld, {
+  rv$x <- seq(XSTART, input$ld, length.out = NPTS)
+})
+
+
+rt_grid <- reactive({
+  this.x <- seq(min(rv$x), max(rv$x), length = input$ld)
+  suppressWarnings(this.y <- predict(this.model(), data.frame(x = this.x)))
+  data.frame(x = this.x, y = this.y)
+})
+
+this.model <- reactive({
+  d <- data.frame(x = rv$x, y = rv$y)
+  lm(y ~ bs(x, degree = BSDEG, knots = rv$x), d)
+})
+
+# Render plot
+renderPlotly({
+  
+  req(rv$x)
+  req(rv$y)
+  req(rt_grid()$x)
+  req(rt_grid()$y)
+  
+  # creates a list of circle shapes from x/y data
+  circles <- map2(
+    rv$x, rv$y,
+    ~ list(
+      type = "circle",
+      # anchor circles
+      xanchor = .x,
+      yanchor = .y,
+      # give each circle a 2 pixel diameter
+      x0 = -4, x1 = 4,
+      y0 = -4, y1 = 4,
+      xsizemode = "pixel",
+      ysizemode = "pixel",
+      # other visual properties
+      fillcolor = "red",
+      ## hover info?
+      ## stroke??
+      line = list(color = "black", stroke = 5)
+    )
+  )
+
+  # plot the shapes and fitted line
+  p <- plot_ly(source="mysource", height=200) %>%
+    add_lines(x = c(XSTART, input$ld), y = c(1, 1), color = I("black"),
+              line = list(widthh=0.5, dash="dot"), showlegend = F) %>%
+    add_lines(x = rt_grid()$x, y = rt_grid()$y, color = I("#F89880"),
+              showlegend = F,
+              hoverinfo = 'y',
+              hovertemplate = paste("%{y:.3f}<extra></extra>")
+              ) %>% 
+    layout(
+        plot_bgcolor = '#f0f0f0', # Light grey background
+        # xaxis
+        xaxis = list(
+          title = "t",
+          zerolinecolor = "#f0f0f0", # Light grey zeroline color
+          gridcolor = "#ffffff",     # White grid lines
+          titlefont = list(family = "Arial, sans-serif"),
+          tickfont = list(family = "Arial, sans-serif")
+        ),
+        # yaxis
+        yaxis = list(
+          title = "R(t)",
+          range = c(0, YMAX),
+          zerolinecolor = "#f0f0f0", # Light grey zeroline color
+          gridcolor = "#ffffff",     # White grid lines
+          titlefont = list(family = "Arial, sans-serif"),
+          tickfont = list(family = "Arial, sans-serif")
+        ),
+        margin = list(l = 35, r = 0, b = 0, t = 0), # Adjusted margins
+        shapes = circles,
+        font = list(family = "Arial, sans-serif")
+      ) %>%
+      config(edits = list(shapePosition = TRUE))
+  
+    event_register(p, "plotly_relayout")
+    
+    p
+})
+
+# update x/y reactive values in response to changes in shape anchors
+
+observe({
+  ed <- event_data("plotly_relayout", source = 'mysource')
+  shape_anchors <- ed[grepl("^shapes.*anchor$", names(ed))]
+  if (length(shape_anchors) != 2) {
+    return()
+  }
+  row_index <- unique(readr::parse_number(names(shape_anchors)) + 1)
+  pts <- as.numeric(shape_anchors)
+  
+  # some controls on the bounds
+  if(row_index == 1) {
+    rv$x[row_index] <- XSTART
+  } else if (row_index == NPTS) {
+    rv$x[row_index] <- input$ld
+  } else {
+    rv$x[row_index] <- sapply(pts[1], function(x) 
+      ifelse(x < XSTART, XSTART, ifelse(x > input$ld, input$ld, x)))
+  }
+  
+  rv$y[row_index] <- sapply(pts[2], function(y) 
+    ifelse(y < 0, 0, ifelse(y > YMAX, YMAX, y)))
+})
+```
+</div>
+
+Now, create the all subsequent generations within the modeling window (generation # is indicated by fill color in the graph below, with lighter being later generations. The first generation is outlined in red):
+```{r echo=FALSE}
+
+dat_all <- reactive({
+  
+  dat <- as_tibble(plot_dat())
+
+  i1 <- dat$i1
+  gen_i <- 1
+  p <- dnbinom(0:input$maxdelay, size = input$NB_r, mu = input$NB_m)
+  
+  # ----------
+  # while there are any initial infection dates lower than the modeling window
+  # end, simulate the next generation
+  #while (gen_i < 2) {
+  while(any(i1<=input$ld)) {
+    ## new generation
+    gen_i <- gen_i + 1
+
+    
+    ## Infection dates of previous generation
+    date <- as.numeric(names(table(i1)))
+    
+    ## Number of cases on each date
+    no   <- as.numeric(table(i1))
+    #no
+    # stopifnot(sum(no) == n1)
+    ## get the next iteration of rT using the file provided.
+    #mu   <- no * rt[date]
+    rt = rt_grid()$y
+    rt <- c(rt, rep(input$RTINF, max(date))) ## repeat RTINF until the end of time
+    mu   <- no * rt[date] # ****** <<<< TODO:
+    #mu <- no * r0
+    #mu
+    #sum(mu)
+    
+    ## simulate the next generation of infectees
+    #n1   <- rpois(1, mu)
+    #n1
+    n1   <- sapply(mu, function(mx) rpois(1, mx))
+    #n1
+    #**** ?
+    # this doesn't make several n1, it just does the first one....
+    # incorrect ??
+    
+    ## and their generation interval
+    inf1 <- rgamma(sum(n1), shape = 4.29, rate = 1.18)
+    # include the start dates before the generation time
+    i1   <- rep(date, times = n1) + ceiling(inf1)
+    ## 
+    inc1 <- exp(rnorm(sum(n1), 1.621, 0.418))
+    o1   <- i1 + ceiling(inc1) 
+    ## Date of report
+    d1   <- o1 + sample(0:input$maxdelay, size = sum(n1), prob = p, replace = TRUE)
+    ## 
+    
+    gen_i_c <- rep(gen_i, length(i1))
+    dat1 <- cbind(i1, o1, d1, gen_i_c)
+    ###
+    dat  <- rbind(dat, dat1)
+  }
+  
+  dat
+  
+})
+
+renderPlot({
+  
+  ## summary plot
+  # Curves
+  as_tibble(dat_all()) %>%
+    rename("Daily Infections" = i1, 
+           "Daily Onsets" = o1, 
+           "Daily Reports" = d1) %>%
+    pivot_longer(cols = c("Daily Infections", "Daily Onsets", 
+                          "Daily Reports")) %>%
+    group_by(name, gen_i_c, value) %>% tally() %>%
+    mutate(is_gen_1 = gen_i_c == 1) %>%
+    ggplot(.) +
+    geom_bar(aes(x = value, fill = gen_i_c, y = n, color = is_gen_1, lwd = is_gen_1), 
+             position = 'stack', stat = 'identity') + 
+    facet_wrap(~name, nrow = 1) + 
+    ylab('N') + xlab('Day') +
+    scale_fill_continuous(name = 'Gen. #') +
+    scale_color_manual(name = "", values = c("transparent", "red")) +
+    scale_linewidth_manual(name = "", values = c(0.1, 1)) +
+    # scale_fill_brewer(name = 'Gen.#', type = 'seq', 
+    #                   direction = -1, palette = 3) + 
+    theme_gray() + coord_cartesian(xlim = c(0, input$ld)) +
+    theme(legend.position = 'none',
+                axis.text = element_text(size = 10),
+          axis.title = element_text(size = 14),
+          strip.text = element_text(size = 14))
+  
+}, height = 200 )
+```
+
+Now you have **line-list** data for every person within the modeling window.
+
