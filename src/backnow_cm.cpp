@@ -21,7 +21,9 @@
 //
 // -------------------------------------------------------------------------------
 #include <RcppArmadillo.h>
+#include <fstream>
 using namespace Rcpp;
+using namespace std;
 // [[Rcpp::plugins("cpp11")]]
 // [[Rcpp::depends(RcppArmadillo)]]
 
@@ -358,8 +360,9 @@ NumericVector getr(NumericVector curve, NumericVector si, int size){
   //    Compute the mean only
   //
   // Arguments
-  //   
-  //
+  //    curve: i.e., the current backcaulation, dim of (nd + maxdelay)   
+  //    si: serial interval of 14?
+  //    size: NB_size (default is 6)
   // Returns:
   //
   
@@ -369,10 +372,10 @@ NumericVector getr(NumericVector curve, NumericVector si, int size){
   double shape;
   double scale;
   NumericVector incid;
-  NumericVector dem = lambda(curve,si);
+  NumericVector dem = lambda(curve, si);
   NumericVector dem1;
   for (int i = 0; i < nr; ++i){
-    incid     = curve[seq(i + 1, i + size + 1)];
+    incid     = curve[seq(i + 1, i + size + 1)];  //daily counts for days i to i + size
     shape     = sum(incid) + 1;
     dem1      = dem[seq(i, i + size)];
     scale     = 1 / (sum(dem1) + 0.2);
@@ -383,10 +386,13 @@ NumericVector getr(NumericVector curve, NumericVector si, int size){
 
 // -------------------------------------------------------------------------------
 // [[Rcpp::export]]
-List backnow(NumericVector outcome, NumericVector days, 
+List backnow_cm(NumericVector outcome, NumericVector days, 
              IntegerVector week, IntegerVector weekend, 
              int iter, double sigma, int maxdelay, 
-             NumericVector si, int size, Nullable<int> cd = R_NilValue){
+             NumericVector si, int size, 
+             int workerID,
+             int printProgress,
+             Nullable<int> cd = R_NilValue){
   // Description:
   //
   //
@@ -400,6 +406,8 @@ List backnow(NumericVector outcome, NumericVector days,
   //   maxdelay: the maxmimum reporting delay, 20 days
   //   si:       the PDF of the serial interval by day, stands in for the generation time between infection and onset
   //   size:     ?? 6, seems like tau, the sliding window size in days
+  //   workerID: workerID number
+  //   printProgress: prints progress using worker ID
   //   cd:       ?? I believe its a placeholder for incorrect reporting delays?
   //              Note: cd must be earlier than the first day of nowcasting period
   //
@@ -492,17 +500,32 @@ List backnow(NumericVector outcome, NumericVector days,
     mi = missind[i];
     misscov(i,_) = cov(mi,_);
   }
+  
+  // --------------------------------
+  std::string name_base = "./tmp/w" + std::to_string(workerID);
+  std::string old_name = name_base + "-" + "0" + ".txt";
+  std::string new_name = old_name;
+  std::ofstream file(old_name.c_str()); // Open the file
+  file.close();
 
   // --------------------------------  
   ////////////////////////////////////////////////////////////////////
   /// The MCMC loop //////////////////////////////////////////////////
   ////////////////////////////////////////////////////////////////////
-  Rcpp::Rcout << "ITER# ";
+  //Rcpp::Rcout << "ITER# ";
   for (int i = 1; i < iter; ++i) { 
     
     // Print for every 500
-    if(i % 500 == 0) {
-      Rcpp::Rcout << i << "\t";
+    if(printProgress == 1) {
+      if(i % 500 == 0) {
+        new_name = name_base + "-" + std::to_string(i) + ".txt";
+        //Rcpp::Rcout << i << "\t";
+        if (std::rename(old_name.c_str(), new_name.c_str()) != 0) {
+          // If std::rename returns a non-zero value, the rename operation failed
+          Rcpp::stop("Failed to rename the file.");
+        }
+        old_name = new_name;
+      }
     }
 
     // initialize the starting old parameters
@@ -643,6 +666,19 @@ List backnow(NumericVector outcome, NumericVector days,
   ////////////////////////////////////////////////////////////////
   ////////////////////////////////////////////////////////////////
 
+  // Final print
+  if(printProgress == 1) {
+    //if(i % 500 == 0) {
+      new_name = name_base + "-" + std::to_string(iter) + ".txt";
+      //Rcpp::Rcout << i << "\t";
+      if (std::rename(old_name.c_str(), new_name.c_str()) != 0) {
+        // If std::rename returns a non-zero value, the rename operation failed
+        Rcpp::stop("Failed to rename the file.");
+      }
+      old_name = new_name;
+    //}
+  }
+  
   // --------------------------------
   // OUTPUT
   List output = List::create(Named("Back") = back, Named("R") = rt);

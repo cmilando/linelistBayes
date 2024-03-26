@@ -86,9 +86,9 @@ BEGIN_RCPP
     return rcpp_result_gen;
 END_RCPP
 }
-// backnow
-List backnow(NumericVector outcome, NumericVector days, IntegerVector week, IntegerVector weekend, int iter, double sigma, int maxdelay, NumericVector si, int size, Nullable<int> cd);
-RcppExport SEXP _linelistBayes_backnow(SEXP outcomeSEXP, SEXP daysSEXP, SEXP weekSEXP, SEXP weekendSEXP, SEXP iterSEXP, SEXP sigmaSEXP, SEXP maxdelaySEXP, SEXP siSEXP, SEXP sizeSEXP, SEXP cdSEXP) {
+// backnow_cm
+List backnow_cm(NumericVector outcome, NumericVector days, IntegerVector week, IntegerVector weekend, int iter, double sigma, int maxdelay, NumericVector si, int size, int workerID, int printProgress, Nullable<int> cd);
+RcppExport SEXP _linelistBayes_backnow_cm(SEXP outcomeSEXP, SEXP daysSEXP, SEXP weekSEXP, SEXP weekendSEXP, SEXP iterSEXP, SEXP sigmaSEXP, SEXP maxdelaySEXP, SEXP siSEXP, SEXP sizeSEXP, SEXP workerIDSEXP, SEXP printProgressSEXP, SEXP cdSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
@@ -101,8 +101,10 @@ BEGIN_RCPP
     Rcpp::traits::input_parameter< int >::type maxdelay(maxdelaySEXP);
     Rcpp::traits::input_parameter< NumericVector >::type si(siSEXP);
     Rcpp::traits::input_parameter< int >::type size(sizeSEXP);
+    Rcpp::traits::input_parameter< int >::type workerID(workerIDSEXP);
+    Rcpp::traits::input_parameter< int >::type printProgress(printProgressSEXP);
     Rcpp::traits::input_parameter< Nullable<int> >::type cd(cdSEXP);
-    rcpp_result_gen = Rcpp::wrap(backnow(outcome, days, week, weekend, iter, sigma, maxdelay, si, size, cd));
+    rcpp_result_gen = Rcpp::wrap(backnow_cm(outcome, days, week, weekend, iter, sigma, maxdelay, si, size, workerID, printProgress, cd));
     return rcpp_result_gen;
 END_RCPP
 }
@@ -114,7 +116,7 @@ static const R_CallMethodDef CallEntries[] = {
     {"_linelistBayes_logLikNB", (DL_FUNC) &_linelistBayes_logLikNB, 5},
     {"_linelistBayes_lambda", (DL_FUNC) &_linelistBayes_lambda, 2},
     {"_linelistBayes_getr", (DL_FUNC) &_linelistBayes_getr, 3},
-    {"_linelistBayes_backnow", (DL_FUNC) &_linelistBayes_backnow, 10},
+    {"_linelistBayes_backnow_cm", (DL_FUNC) &_linelistBayes_backnow_cm, 12},
     {NULL, NULL, 0}
 };
 

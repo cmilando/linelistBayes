@@ -1,6 +1,7 @@
-.Rproj.user
-.Rhistory
-.RData
+*.Rproj.user
+*.Rhistory
+*.RData
+*.RDS
 .Ruserdata
 src/*.o
 src/*.so
@@ -9,3 +10,5 @@ inst/doc
 /doc/
 /Meta/
 CM_TEST_NOTES
+/tmp
+.Rproj.user

@@ -1,5 +1,5 @@
 ---
-title: "my-vignette"
+title: "linelistBayes: an introduction"
 output: rmarkdown::html_vignette
 vignette: >
   %\VignetteIndexEntry{my-vignette}
@@ -14,45 +14,65 @@ knitr::opts_chunk$set(
 )
 ```
 
+# Why is this package necessary
+
+Essentially, the reporting delay distribution is unknown because the time-dependent infectivity ( R(t) ) is unknown.
+
+Say you have 100 people who at t0 start showing symptoms.
+
+So, this is a two-step process
+
+So linelistBayes
+
+
 ```{r setup}
 library(linelistBayes)
-library(tidyverse)
 ```
 
-# The example where you have count data
+You have count data
 ```{r example1}
-data("halfyear")
+data("sample_dates")
+data("sample_location")
+data("sample_cases")
 
-halfyear$dat_tbl %>%
-  mutate(d1_int = type.convert(d1, as.is = T)) %>%
-  ggplot(.) + geom_line(aes(x = d1_int, y = Freq)) +
-  geom_line(aes(x = d1_int, y = Freq), data = halfyear$o1_tbl %>%
-              mutate(d1_int = type.convert(d1, as.is = T)),
-            color = 'red') +
-  geom_line(aes(x = d1_int, y = Freq), data = halfyear$i1_tbl %>%
-              mutate(d1_int = type.convert(d1, as.is = T)),
-            color = 'blue')
-
+head(sample_dates)
+head(sample_cases)
 ```
 
-# The example where you have linelist data
-```{r example2}
-data("linelist")
+create your `caseCounts` object
+```{r casecounts}
+caseCounts <- create_caseCounts(date_vec = sample_dates,
+                                location_vec = sample_location,
+                                cases_vec = sample_cases)
 
-as_tibble(linelist) %>%
-  rename("Daily Infections" = i1,
-         "Daily Onsets" = o1,
-         "Daily Reports" = d1) %>%
-  pivot_longer(cols = c("Daily Infections", "Daily Onsets",
-                        "Daily Reports")) %>%
-  group_by(name, gen_i_c, value) %>% tally() %>%
-  ggplot(.) +
-  geom_bar(aes(x = value, fill = gen_i_c, y = n),
-           position = 'stack', stat = 'identity', color = 'black',
-           lwd = 0.1) +
-  facet_wrap(~name, nrow = 1) +
-  ylab('N') + xlab('Day') +
-  # scale_fill_brewer(name = 'Gen.#', type = 'seq',
-  #                   direction = -1, palette = 3) +
-  theme_gray() + coord_cartesian(xlim = c(0, ld))
+# get the first wave only
+caseCounts <- caseCounts[1:80, ]
+head(caseCounts)
 ```
+
+Serial Interval: 
+```{r serial}
+sip <- si(14, 4.29, 1.18)
+```
+
+Back-calculate:
+```{r backcalc}
+out_list <- run_backnow(caseCounts, 
+                        MAX_ITER = as.integer(2000), 
+                        norm_sigma = 0.2,
+                        sip = sip,
+                        NB_maxdelay = as.integer(20),
+                        NB_size = as.integer(6),
+                        printProgress = 1,
+                        reportF_missP = 0.6)
+```
+
+And plot
+```{r plot1}
+# plot
+plot(out_list, "est")
+
+plot(out_list, "rt")
+```
+
+

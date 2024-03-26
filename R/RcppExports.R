@@ -25,7 +25,7 @@ getr <- function(curve, si, size) {
     .Call(`_linelistBayes_getr`, curve, si, size)
 }
 
-backnow <- function(outcome, days, week, weekend, iter, sigma, maxdelay, si, size, cd = NULL) {
-    .Call(`_linelistBayes_backnow`, outcome, days, week, weekend, iter, sigma, maxdelay, si, size, cd)
+backnow_cm <- function(outcome, days, week, weekend, iter, sigma, maxdelay, si, size, workerID, printProgress, cd = NULL) {
+    .Call(`_linelistBayes_backnow_cm`, outcome, days, week, weekend, iter, sigma, maxdelay, si, size, workerID, printProgress, cd)
 }
 
