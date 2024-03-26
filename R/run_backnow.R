@@ -144,7 +144,7 @@ run_backnow <- function(input, MAX_ITER = 2000,
   }
   
   ##
-  est_r <- apply(r1, 2, function(x) quantile(x, probs = probs_to_export)))
+  est_r <- apply(r1, 2, function(x) quantile(x, probs = probs_to_export))
   
   # gewke diagnostics
   gr1 <- geweke.diag(r1)$z
