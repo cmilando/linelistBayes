@@ -80,9 +80,33 @@ run_backnow <- function(input, MAX_ITER = 2000,
   }
   printProgress <- as.integer(printProgress)
   
+  
+  # ---------------------------------------------------------
+  # run first to get a time estimate
+  start_time <- Sys.time()
+  out_list <- 
+    backnow_cm(outcome       = caseCounts_line$delay_int, 
+               days          = caseCounts_line$report_int, 
+               week          = caseCounts_line$week_int,
+               weekend       = caseCounts_line$is_weekend, 
+               workerID      = workerID,
+               printProgress = printProgress,
+               iter          = 100, 
+               sigma         = norm_sigma,
+               maxdelay      = NB_maxdelay, 
+               si            = sip, 
+               size          = NB_size)
+  end_time <- Sys.time()
+  elapsed <- end_time - start_time
+  scale_up <- MAX_ITER / 100
+  total_est_time <- elapsed * scale_up
+  print("Estimated run time:")
+  print(total_est_time)
+  
   # ---------------------------------------------------------
   # n backnow
   # no progress printing 
+  start_time <- Sys.time()
   out_list <- 
     backnow_cm(outcome       = caseCounts_line$delay_int, 
                days          = caseCounts_line$report_int, 
@@ -95,7 +119,11 @@ run_backnow <- function(input, MAX_ITER = 2000,
                maxdelay      = NB_maxdelay, 
                si            = sip, 
                size          = NB_size)
-
+  end_time <- Sys.time()
+  elapsed <- end_time - start_time
+  print("True run time:")
+  print(elapsed)
+  
   # ---------------------------------------------------------
   # process back-calcution and r(t) across chains
   # after 1000 burn-in
