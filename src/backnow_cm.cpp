@@ -385,6 +385,7 @@ NumericVector getr(NumericVector curve, NumericVector si, int size){
 }
 
 // -------------------------------------------------------------------------------
+// #' @export
 // [[Rcpp::export]]
 List backnow_cm(NumericVector outcome, NumericVector days, 
              IntegerVector week, IntegerVector weekend, 

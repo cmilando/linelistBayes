@@ -11,10 +11,11 @@
 #' @param ... 
 #'
 #' @return
-#' @export
+
 #' @import coda
-#' @import tidyverse
-#' @examples
+#' @import magrittr
+#' @import dplyr
+#' @export
 run_backnow <- function(input, MAX_ITER = 2000, 
                         norm_sigma = NULL, sip = NULL, 
                         NB_maxdelay = NULL, NB_size = NULL, 

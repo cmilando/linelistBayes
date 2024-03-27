@@ -3,12 +3,13 @@
 #' @param date_vec 
 #' @param location_vec 
 #' @param cases_vec 
-#'
+#' @import lubridate
+#' @import magrittr
+#' @import dplyr
 #' @return
 #' @export
 #'
 #' @examples
-#' @import lubridate
 create_caseCounts <- function(date_vec, location_vec, cases_vec) {
   
   # check types

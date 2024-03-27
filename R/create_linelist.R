@@ -6,11 +6,12 @@
 #' @param reportF_missP 
 #'
 #' @return
-#' @export
 #'
 #' @examples
-#' @import tidyverse
+#' @import magrittr
+#' @import dplyr
 #' @import lubridate
+#' @export
 create_linelist <- function(caseCounts, 
                             reportF = NULL, 
                             reportF_args = NULL,
